@@ -7,6 +7,7 @@ CPPFLAGS ?= -Iinclude -Isrc
 LDFLAGS ?=
 TEST_ENV ?=
 BENCH_FRAMES ?= 20000
+PLATFORM_BENCH_FRAMES ?= 2000
 CPPCHECK ?= cppcheck
 SCAN_BUILD ?= scan-build
 
@@ -67,7 +68,7 @@ TOOL_BINS := \
 	$(BUILD_DIR)/tools/g729enc \
 	$(BUILD_DIR)/tools/g729dec
 
-.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle postfilter-oracle release-check static-analysis synth-oracle sanitize
+.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle platform-check postfilter-oracle release-check static-analysis synth-oracle sanitize
 
 all: $(LIB) $(TEST_BINS) $(EXAMPLE_BINS) $(TOOL_BINS)
 
@@ -156,6 +157,10 @@ test: all
 
 loadtest: $(BUILD_DIR)/tools/g729bench
 	$(BUILD_DIR)/tools/g729bench $(BENCH_FRAMES)
+
+platform-check:
+	$(MAKE) clean test
+	$(MAKE) loadtest BENCH_FRAMES=$(PLATFORM_BENCH_FRAMES)
 
 release-check:
 	$(MAKE) clean test

@@ -6,6 +6,7 @@
   trailing partial-frame rejection.
 - AddressSanitizer and UndefinedBehaviorSanitizer pass when available.
 - Static analysis passes with clang, clang static analyzer, and cppcheck.
+- Platform tests pass on Ubuntu x64, macOS ARM64, and Linux ARM64 Docker/QEMU.
 - Deterministic stress/load checks pass with `make loadtest`.
 - Decoder output matches Go decoder output sample-for-sample on committed
   fixtures.
@@ -15,10 +16,13 @@
   committed fixtures.
 - No forbidden G.729 implementation source or binary is tracked.
 - `LICENSE` is present and matches the intended MIT release terms.
-- GitHub Actions CI runs the release gate and static-analysis gate on pushes
-  and pull requests.
+- GitHub Actions CI runs the release gate, static-analysis gate, and platform
+  test gate on pushes and pull requests.
+- GitHub Actions platform runs publish Markdown job summaries and the combined
+  `platform-test-report` artifact.
 - README and clean-room documentation make only conservative claims.
 - Release notes state unsupported Annex B, G.729.1, G.729D, G.729E, ITU
   certification, and ITU endorsement.
 - `make release-check` passes before tagging or publishing a release.
+- `make platform-check` passes before tagging or publishing a release.
 - `make static-analysis` passes before tagging or publishing a release.

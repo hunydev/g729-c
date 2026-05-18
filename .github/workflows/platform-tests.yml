@@ -1,0 +1,208 @@
+name: platform-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PLATFORM_BENCH_FRAMES: 2000
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+          - name: macos-arm64-clang
+            runner: macos-15
+            cc: clang
+            cxx: clang++
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Capture platform
+        shell: bash
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          mkdir -p reports
+          uname -s > "reports/${{ matrix.name }}.uname_s"
+          uname -m > "reports/${{ matrix.name }}.uname_m"
+          "$CC" --version | sed -n '1p' > "reports/${{ matrix.name }}.cc"
+          "$CXX" --version | sed -n '1p' > "reports/${{ matrix.name }}.cxx"
+
+      - name: Run platform check
+        id: check
+        shell: bash
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -o pipefail
+          make platform-check PLATFORM_BENCH_FRAMES="$PLATFORM_BENCH_FRAMES" \
+            2>&1 | tee "reports/${{ matrix.name }}.log"
+
+      - name: Write Markdown report
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p reports
+          outcome="${{ steps.check.outcome }}"
+          {
+            echo "# Platform Test: ${{ matrix.name }}"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Outcome | ${outcome} |"
+            echo "| Runner | ${{ matrix.runner }} |"
+            echo "| OS | $(cat "reports/${{ matrix.name }}.uname_s" 2>/dev/null || echo unknown) |"
+            echo "| Arch | $(cat "reports/${{ matrix.name }}.uname_m" 2>/dev/null || echo unknown) |"
+            echo "| CC | $(cat "reports/${{ matrix.name }}.cc" 2>/dev/null || echo unknown) |"
+            echo "| CXX | $(cat "reports/${{ matrix.name }}.cxx" 2>/dev/null || echo unknown) |"
+            echo "| Command | make platform-check PLATFORM_BENCH_FRAMES=$PLATFORM_BENCH_FRAMES |"
+            echo
+            echo "## Log Tail"
+            echo
+            echo '```text'
+            tail -n 80 "reports/${{ matrix.name }}.log" 2>/dev/null || true
+            echo '```'
+          } > "reports/${{ matrix.name }}.md"
+          cat "reports/${{ matrix.name }}.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload platform report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-report-${{ matrix.name }}
+          path: reports/${{ matrix.name }}.*
+          if-no-files-found: error
+
+  docker-arm64:
+    name: linux-arm64-docker-qemu
+    runs-on: ubuntu-24.04
+    env:
+      TARGET_NAME: linux-arm64-docker-qemu
+      PLATFORM_BENCH_FRAMES: 1000
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Run platform check in arm64 container
+        id: check
+        shell: bash
+        run: |
+          mkdir -p reports
+          set -o pipefail
+          docker run --rm --platform linux/arm64 \
+            -e PLATFORM_BENCH_FRAMES="$PLATFORM_BENCH_FRAMES" \
+            -e TARGET_NAME="$TARGET_NAME" \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            arm64v8/ubuntu:24.04 \
+            bash -lc '
+              set -euxo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential
+              uname -s > "reports/${TARGET_NAME}.uname_s"
+              uname -m > "reports/${TARGET_NAME}.uname_m"
+              gcc --version | sed -n "1p" > "reports/${TARGET_NAME}.cc"
+              g++ --version | sed -n "1p" > "reports/${TARGET_NAME}.cxx"
+              make platform-check PLATFORM_BENCH_FRAMES="${PLATFORM_BENCH_FRAMES}" CC=gcc CXX=g++
+            ' 2>&1 | tee "reports/${TARGET_NAME}.log"
+
+      - name: Restore workspace ownership
+        if: always()
+        shell: bash
+        run: sudo chown -R "$USER:$USER" build reports 2>/dev/null || true
+
+      - name: Write Markdown report
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p reports
+          outcome="${{ steps.check.outcome }}"
+          {
+            echo "# Platform Test: ${TARGET_NAME}"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Outcome | ${outcome} |"
+            echo "| Runner | ubuntu-24.04 |"
+            echo "| Container | arm64v8/ubuntu:24.04 |"
+            echo "| OS | $(cat "reports/${TARGET_NAME}.uname_s" 2>/dev/null || echo unknown) |"
+            echo "| Arch | $(cat "reports/${TARGET_NAME}.uname_m" 2>/dev/null || echo unknown) |"
+            echo "| CC | $(cat "reports/${TARGET_NAME}.cc" 2>/dev/null || echo unknown) |"
+            echo "| CXX | $(cat "reports/${TARGET_NAME}.cxx" 2>/dev/null || echo unknown) |"
+            echo "| Command | make platform-check PLATFORM_BENCH_FRAMES=$PLATFORM_BENCH_FRAMES CC=gcc CXX=g++ |"
+            echo
+            echo "## Log Tail"
+            echo
+            echo '```text'
+            tail -n 80 "reports/${TARGET_NAME}.log" 2>/dev/null || true
+            echo '```'
+          } > "reports/${TARGET_NAME}.md"
+          cat "reports/${TARGET_NAME}.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload platform report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-report-linux-arm64-docker-qemu
+          path: reports/linux-arm64-docker-qemu.*
+          if-no-files-found: error
+
+  report:
+    name: platform-test-report
+    runs-on: ubuntu-24.04
+    needs:
+      - native
+      - docker-arm64
+    if: always()
+    steps:
+      - name: Download platform reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: platform-report-*
+          path: platform-reports
+          merge-multiple: true
+
+      - name: Build combined Markdown report
+        shell: bash
+        run: |
+          {
+            echo "# Platform Test Report"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            for report in $(find platform-reports -name '*.md' -type f | sort); do
+              cat "$report"
+              echo
+            done
+          } > platform-test-report.md
+          cat platform-test-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload combined report
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-test-report
+          path: platform-test-report.md
+          if-no-files-found: error

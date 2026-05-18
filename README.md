@@ -1,5 +1,9 @@
 # g729-c
 
+[![CI](https://github.com/hunydev/g729-c/actions/workflows/ci.yml/badge.svg)](https://github.com/hunydev/g729-c/actions/workflows/ci.yml)
+[![Static Analysis](https://github.com/hunydev/g729-c/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/hunydev/g729-c/actions/workflows/static-analysis.yml)
+[![Platform Tests](https://github.com/hunydev/g729-c/actions/workflows/platform-tests.yml/badge.svg)](https://github.com/hunydev/g729-c/actions/workflows/platform-tests.yml)
+
 Clean-room C port of the MIT-licensed `github.com/hunydev/g729` Go
 implementation.
 
@@ -50,6 +54,7 @@ make
 make test
 make clean test
 make loadtest
+make platform-check
 make release-check
 make static-analysis
 make fixtures
@@ -93,10 +98,25 @@ make sanitize
 ```
 
 `make loadtest` runs the deterministic benchmark/load tool with
-`BENCH_FRAMES=20000` by default. `make release-check` runs the normal suite,
+`BENCH_FRAMES=20000` by default. `make platform-check` runs the normal suite
+and a shorter deterministic load test for OS/architecture matrix checks.
+`make release-check` runs the normal suite,
 sanitizers, a final normal suite, the load test, and `git diff --check`.
 `make static-analysis` runs the clang build/test path, clang static analyzer,
 and cppcheck warning/performance/portability checks.
+
+## GitHub Actions
+
+Actions currently publish three workflow badges above:
+
+- `ci.yml`: release gate on Ubuntu.
+- `static-analysis.yml`: clang static analyzer and cppcheck.
+- `platform-tests.yml`: Ubuntu x64, macOS ARM64, and Linux ARM64 through
+  Docker/QEMU.
+
+The platform workflow writes a Markdown job summary for each target and uploads
+per-target Markdown/log artifacts plus one combined `platform-test-report`
+artifact for the full run.
 
 ## CLI
 
