@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload platform report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: platform-report-${{ matrix.name }}
           path: reports/${{ matrix.name }}.*
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload platform report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: platform-report-linux-arm64-docker-qemu
           path: reports/linux-arm64-docker-qemu.*
@@ -178,7 +178,7 @@ jobs:
     if: always()
     steps:
       - name: Download platform reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: platform-report-*
           path: platform-reports
@@ -201,7 +201,7 @@ jobs:
           cat platform-test-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload combined report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: platform-test-report
           path: platform-test-report.md
