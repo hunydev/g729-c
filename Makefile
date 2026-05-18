@@ -1,9 +1,12 @@
 CC ?= cc
+CXX ?= c++
 AR ?= ar
 CFLAGS ?= -std=c99 -Wall -Wextra -Wpedantic -Werror -O2 -g
+CXXFLAGS ?= -std=c++11 -Wall -Wextra -Werror -O2 -g
 CPPFLAGS ?= -Iinclude -Isrc
 LDFLAGS ?=
 TEST_ENV ?=
+BENCH_FRAMES ?= 20000
 
 BUILD_DIR := build
 LIB := $(BUILD_DIR)/libg729.a
@@ -50,16 +53,19 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/test_pcm \
 	$(BUILD_DIR)/tests/test_pitch \
 	$(BUILD_DIR)/tests/test_postfilter \
+	$(BUILD_DIR)/tests/test_stress \
 	$(BUILD_DIR)/tests/test_synth
 
 EXAMPLE_BINS := \
-	$(BUILD_DIR)/examples/api_smoke
+	$(BUILD_DIR)/examples/api_smoke \
+	$(BUILD_DIR)/examples/cpp_smoke
 
 TOOL_BINS := \
+	$(BUILD_DIR)/tools/g729bench \
 	$(BUILD_DIR)/tools/g729enc \
 	$(BUILD_DIR)/tools/g729dec
 
-.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle postfilter-oracle synth-oracle sanitize
+.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle postfilter-oracle release-check synth-oracle sanitize
 
 all: $(LIB) $(TEST_BINS) $(EXAMPLE_BINS) $(TOOL_BINS)
 
@@ -111,6 +117,10 @@ $(BUILD_DIR)/examples/%: examples/%.c $(LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
+$(BUILD_DIR)/examples/cpp_smoke: examples/cpp_smoke.cpp $(LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(LIB) $(LDFLAGS) -o $@
+
 $(BUILD_DIR)/tools/%: tools/%.c $(LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
@@ -137,8 +147,20 @@ test: all
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_pcm
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_pitch
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_postfilter
+	$(TEST_ENV) $(BUILD_DIR)/tests/test_stress
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_synth
 	$(TEST_ENV) $(BUILD_DIR)/examples/api_smoke
+	$(TEST_ENV) $(BUILD_DIR)/examples/cpp_smoke
+
+loadtest: $(BUILD_DIR)/tools/g729bench
+	$(BUILD_DIR)/tools/g729bench $(BENCH_FRAMES)
+
+release-check:
+	$(MAKE) clean test
+	$(MAKE) sanitize
+	$(MAKE) clean test
+	$(MAKE) loadtest
+	git diff --check
 
 fixtures:
 	cd tools/oracle-gen && GOCACHE=/tmp/go-build go run . -out ../../testdata/oracle/basic_vectors.json

@@ -32,6 +32,7 @@ Implemented and tested:
 - `g729enc` and `g729dec` raw file CLIs with stdin/stdout support.
 - C encode followed by C decode loopback coverage against Go encode followed
   by Go decode fixtures.
+- Deterministic stress/load benchmark and release-check target.
 - Encoder front-end PCM preprocessor, LPC analysis, LP-to-LSP/LSF conversion,
   LSP split-VQ quantization, open-loop pitch search, and closed-loop pitch
   primitives, fixed-codebook search primitives, and encoder gain quantization
@@ -48,6 +49,8 @@ oracle fixtures.
 make
 make test
 make clean test
+make loadtest
+make release-check
 make fixtures
 ```
 
@@ -87,6 +90,10 @@ Optional sanitizer pass:
 ```sh
 make sanitize
 ```
+
+`make loadtest` runs the deterministic benchmark/load tool with
+`BENCH_FRAMES=20000` by default. `make release-check` runs the normal suite,
+sanitizers, a final normal suite, the load test, and `git diff --check`.
 
 ## CLI
 
@@ -139,4 +146,6 @@ Unsupported scope includes Annex B SID/CNG/DTX, `annexb=yes`, G.729.1,
 G.729D, G.729E, ITU certification, and ITU endorsement.
 
 See [GOAL.md](GOAL.md) and [docs/clean-room.md](docs/clean-room.md) for the
-long-running acceptance criteria and clean-room boundary.
+long-running acceptance criteria and clean-room boundary. See
+[docs/performance.md](docs/performance.md) and
+[docs/release-notes.md](docs/release-notes.md) for release-candidate checks.
