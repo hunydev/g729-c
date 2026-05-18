@@ -247,7 +247,6 @@ static void apply_long_term_with_gain_q15(
     int t,
     long_term_gain_weights weights,
     int16_t r_out[G729_SUBFRAME_SAMPLES]) {
-    int n;
     if (!weights.enabled) {
         memcpy(r_out, &pf->past_residual[G729_POSTFILTER_PITCH_MAX],
                G729_SUBFRAME_SAMPLES * sizeof(r_out[0]));
@@ -264,7 +263,7 @@ static void apply_long_term_with_gain_q15(
         }
         g0_q15 = g0_base_q15 - (int64_t)weights.gamma_scaled_gain_q15;
         g1_q15 = (int64_t)weights.gamma_scaled_gain_q15;
-        for (n = 0; n < G729_SUBFRAME_SAMPLES; ++n) {
+        for (int n = 0; n < G729_SUBFRAME_SAMPLES; ++n) {
             int64_t p0 = shr64_floor(
                 g0_q15 * (int64_t)pf->past_residual[G729_POSTFILTER_PITCH_MAX + n],
                 15);

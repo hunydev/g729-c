@@ -404,8 +404,13 @@ void g729_closedloop_refine_fraction_subframe2(
     int16_t tmax;
     int16_t best_lag = int_lag;
     int8_t best_frac = -1;
-    int best_set = 0;
-    int64_t best_rn = 0;
+
+    if (xb == NULL || exc == NULL) {
+        best_lag = int_lag;
+        best_frac = 0;
+    } else {
+        int best_set = 0;
+        int64_t best_rn = 0;
 
 #define CONSIDER(lag_value, frac_value) do { \
     int64_t rn__ = correlate_at_frac(xb, exc, (lag_value), (frac_value)); \
@@ -417,10 +422,6 @@ void g729_closedloop_refine_fraction_subframe2(
     } \
 } while (0)
 
-    if (xb == NULL || exc == NULL) {
-        best_lag = int_lag;
-        best_frac = 0;
-    } else {
         g729_closedloop_subframe2_window(int_t1, &tmin, &tmax);
         if (int_lag == tmin) {
             CONSIDER((int16_t)(tmin - 1), 1);
@@ -431,9 +432,9 @@ void g729_closedloop_refine_fraction_subframe2(
         if (int_lag == tmax) {
             CONSIDER((int16_t)(tmax + 1), -1);
         }
-    }
 
 #undef CONSIDER
+    }
 
     if (out_lag != NULL) {
         *out_lag = best_lag;

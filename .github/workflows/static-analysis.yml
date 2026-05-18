@@ -1,0 +1,21 @@
+name: static-analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install analyzers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tools cppcheck
+
+      - name: Run static analysis
+        run: make static-analysis

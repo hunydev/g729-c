@@ -35,7 +35,7 @@ static int open_output(const char *path, FILE **fp) {
     return 0;
 }
 
-static int close_if_file(FILE *fp, FILE *standard, const char *label) {
+static int close_if_file(FILE *fp, const FILE *standard, const char *label) {
     if (fp == NULL || fp == standard) {
         return 0;
     }

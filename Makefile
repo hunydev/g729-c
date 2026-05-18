@@ -7,6 +7,8 @@ CPPFLAGS ?= -Iinclude -Isrc
 LDFLAGS ?=
 TEST_ENV ?=
 BENCH_FRAMES ?= 20000
+CPPCHECK ?= cppcheck
+SCAN_BUILD ?= scan-build
 
 BUILD_DIR := build
 LIB := $(BUILD_DIR)/libg729.a
@@ -65,7 +67,7 @@ TOOL_BINS := \
 	$(BUILD_DIR)/tools/g729enc \
 	$(BUILD_DIR)/tools/g729dec
 
-.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle postfilter-oracle release-check synth-oracle sanitize
+.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle postfilter-oracle release-check static-analysis synth-oracle sanitize
 
 all: $(LIB) $(TEST_BINS) $(EXAMPLE_BINS) $(TOOL_BINS)
 
@@ -161,6 +163,17 @@ release-check:
 	$(MAKE) clean test
 	$(MAKE) loadtest
 	git diff --check
+
+static-analysis:
+	$(MAKE) clean test CC=clang CXX=clang++
+	$(SCAN_BUILD) --status-bugs -o /tmp/g729-c-scan-build \
+		$(MAKE) clean test CC=clang CXX=clang++
+	$(CPPCHECK) --std=c99 --enable=warning,performance,portability \
+		--error-exitcode=1 --inline-suppr --suppress=missingIncludeSystem \
+		$(CPPFLAGS) src tests tools examples/api_smoke.c
+	$(CPPCHECK) --std=c++11 --enable=warning,performance,portability \
+		--error-exitcode=1 --inline-suppr --suppress=missingIncludeSystem \
+		$(CPPFLAGS) examples/cpp_smoke.cpp
 
 fixtures:
 	cd tools/oracle-gen && GOCACHE=/tmp/go-build go run . -out ../../testdata/oracle/basic_vectors.json

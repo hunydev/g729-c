@@ -51,6 +51,7 @@ make test
 make clean test
 make loadtest
 make release-check
+make static-analysis
 make fixtures
 ```
 
@@ -94,6 +95,8 @@ make sanitize
 `make loadtest` runs the deterministic benchmark/load tool with
 `BENCH_FRAMES=20000` by default. `make release-check` runs the normal suite,
 sanitizers, a final normal suite, the load test, and `git diff --check`.
+`make static-analysis` runs the clang build/test path, clang static analyzer,
+and cppcheck warning/performance/portability checks.
 
 ## CLI
 
