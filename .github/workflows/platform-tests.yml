@@ -43,6 +43,7 @@ jobs:
           uname -m > "reports/${{ matrix.name }}.uname_m"
           "$CC" --version | sed -n '1p' > "reports/${{ matrix.name }}.cc"
           "$CXX" --version | sed -n '1p' > "reports/${{ matrix.name }}.cxx"
+          cmake --version | sed -n '1p' > "reports/${{ matrix.name }}.cmake"
 
       - name: Run platform check
         id: check
@@ -52,8 +53,25 @@ jobs:
           CXX: ${{ matrix.cxx }}
         run: |
           set -o pipefail
-          make platform-check PLATFORM_BENCH_FRAMES="$PLATFORM_BENCH_FRAMES" \
-            2>&1 | tee "reports/${{ matrix.name }}.log"
+          {
+            ./configure --prefix="$PWD/reports/make-install-${{ matrix.name }}" \
+              --enable-shared \
+              --disable-werror \
+              --enable-tools \
+              --disable-tests \
+              --disable-examples
+            make clean
+            make platform-check PLATFORM_BENCH_FRAMES="$PLATFORM_BENCH_FRAMES"
+            make install
+            cmake -S . -B "build-cmake-${{ matrix.name }}" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=ON \
+              -DG729_ENABLE_WERROR=ON
+            cmake --build "build-cmake-${{ matrix.name }}"
+            ctest --test-dir "build-cmake-${{ matrix.name }}" --output-on-failure
+            cmake --install "build-cmake-${{ matrix.name }}" \
+              --prefix "$PWD/reports/cmake-install-${{ matrix.name }}"
+          } 2>&1 | tee "reports/${{ matrix.name }}.log"
 
       - name: Write Markdown report
         if: always()
@@ -72,12 +90,13 @@ jobs:
             echo "| Arch | $(cat "reports/${{ matrix.name }}.uname_m" 2>/dev/null || echo unknown) |"
             echo "| CC | $(cat "reports/${{ matrix.name }}.cc" 2>/dev/null || echo unknown) |"
             echo "| CXX | $(cat "reports/${{ matrix.name }}.cxx" 2>/dev/null || echo unknown) |"
-            echo "| Command | make platform-check PLATFORM_BENCH_FRAMES=$PLATFORM_BENCH_FRAMES |"
+            echo "| CMake | $(cat "reports/${{ matrix.name }}.cmake" 2>/dev/null || echo unknown) |"
+            echo "| Coverage | configure, make, make install, CMake, CTest |"
             echo
             echo "## Log Tail"
             echo
             echo '```text'
-            tail -n 80 "reports/${{ matrix.name }}.log" 2>/dev/null || true
+            tail -n 100 "reports/${{ matrix.name }}.log" 2>/dev/null || true
             echo '```'
           } > "reports/${{ matrix.name }}.md"
           cat "reports/${{ matrix.name }}.md" >> "$GITHUB_STEP_SUMMARY"
@@ -90,52 +109,85 @@ jobs:
           path: reports/${{ matrix.name }}.*
           if-no-files-found: error
 
-  docker-arm64:
-    name: linux-arm64-docker-qemu
+  docker:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-arm64-docker-qemu
+            platform: linux/arm64
+            image: arm64v8/ubuntu:24.04
+            qemu: arm64
+          - name: linux-i386-docker
+            platform: linux/386
+            image: i386/ubuntu:24.04
+            qemu: ""
     env:
-      TARGET_NAME: linux-arm64-docker-qemu
       PLATFORM_BENCH_FRAMES: 1000
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
       - name: Set up QEMU
+        if: ${{ matrix.qemu != '' }}
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: arm64
+          platforms: ${{ matrix.qemu }}
 
-      - name: Run platform check in arm64 container
+      - name: Run platform check in container
         id: check
         shell: bash
+        env:
+          TARGET_NAME: ${{ matrix.name }}
         run: |
           mkdir -p reports
           set -o pipefail
-          docker run --rm --platform linux/arm64 \
+          docker run --rm --platform "${{ matrix.platform }}" \
             -e PLATFORM_BENCH_FRAMES="$PLATFORM_BENCH_FRAMES" \
             -e TARGET_NAME="$TARGET_NAME" \
             -v "$PWD:/workspace" \
             -w /workspace \
-            arm64v8/ubuntu:24.04 \
+            "${{ matrix.image }}" \
             bash -lc '
               set -euxo pipefail
               apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential
+              DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential cmake
               uname -s > "reports/${TARGET_NAME}.uname_s"
               uname -m > "reports/${TARGET_NAME}.uname_m"
               gcc --version | sed -n "1p" > "reports/${TARGET_NAME}.cc"
               g++ --version | sed -n "1p" > "reports/${TARGET_NAME}.cxx"
+              cmake --version | sed -n "1p" > "reports/${TARGET_NAME}.cmake"
+              ./configure --prefix="/workspace/reports/make-install-${TARGET_NAME}" \
+                --enable-shared \
+                --disable-werror \
+                --enable-tools \
+                --disable-tests \
+                --disable-examples
+              make clean
               make platform-check PLATFORM_BENCH_FRAMES="${PLATFORM_BENCH_FRAMES}" CC=gcc CXX=g++
+              make install
+              cmake -S . -B "build-cmake-${TARGET_NAME}" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=ON \
+                -DG729_ENABLE_WERROR=ON
+              cmake --build "build-cmake-${TARGET_NAME}"
+              ctest --test-dir "build-cmake-${TARGET_NAME}" --output-on-failure
+              cmake --install "build-cmake-${TARGET_NAME}" \
+                --prefix "/workspace/reports/cmake-install-${TARGET_NAME}"
             ' 2>&1 | tee "reports/${TARGET_NAME}.log"
 
       - name: Restore workspace ownership
         if: always()
         shell: bash
-        run: sudo chown -R "$USER:$USER" build reports 2>/dev/null || true
+        run: sudo chown -R "$USER:$USER" build build-cmake-* reports config.mk 2>/dev/null || true
 
       - name: Write Markdown report
         if: always()
         shell: bash
+        env:
+          TARGET_NAME: ${{ matrix.name }}
         run: |
           mkdir -p reports
           outcome="${{ steps.check.outcome }}"
@@ -146,17 +198,19 @@ jobs:
             echo "| --- | --- |"
             echo "| Outcome | ${outcome} |"
             echo "| Runner | ubuntu-24.04 |"
-            echo "| Container | arm64v8/ubuntu:24.04 |"
+            echo "| Container | ${{ matrix.image }} |"
+            echo "| Platform | ${{ matrix.platform }} |"
             echo "| OS | $(cat "reports/${TARGET_NAME}.uname_s" 2>/dev/null || echo unknown) |"
             echo "| Arch | $(cat "reports/${TARGET_NAME}.uname_m" 2>/dev/null || echo unknown) |"
             echo "| CC | $(cat "reports/${TARGET_NAME}.cc" 2>/dev/null || echo unknown) |"
             echo "| CXX | $(cat "reports/${TARGET_NAME}.cxx" 2>/dev/null || echo unknown) |"
-            echo "| Command | make platform-check PLATFORM_BENCH_FRAMES=$PLATFORM_BENCH_FRAMES CC=gcc CXX=g++ |"
+            echo "| CMake | $(cat "reports/${TARGET_NAME}.cmake" 2>/dev/null || echo unknown) |"
+            echo "| Coverage | configure, make, make install, CMake, CTest |"
             echo
             echo "## Log Tail"
             echo
             echo '```text'
-            tail -n 80 "reports/${TARGET_NAME}.log" 2>/dev/null || true
+            tail -n 100 "reports/${TARGET_NAME}.log" 2>/dev/null || true
             echo '```'
           } > "reports/${TARGET_NAME}.md"
           cat "reports/${TARGET_NAME}.md" >> "$GITHUB_STEP_SUMMARY"
@@ -165,8 +219,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: platform-report-linux-arm64-docker-qemu
-          path: reports/linux-arm64-docker-qemu.*
+          name: platform-report-${{ matrix.name }}
+          path: reports/${{ matrix.name }}.*
           if-no-files-found: error
 
   report:
@@ -174,7 +228,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - native
-      - docker-arm64
+      - docker
     if: always()
     steps:
       - name: Download platform reports

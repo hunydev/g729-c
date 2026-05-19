@@ -1,0 +1,220 @@
+#!/bin/sh
+set -eu
+
+prefix=/usr/local
+bindir=
+libdir=
+includedir=
+pkgconfigdir=
+build_dir=build
+host=
+arch=
+enable_shared=0
+enable_tools=1
+enable_tests=0
+enable_examples=0
+enable_werror=0
+
+cc=${CC:-cc}
+cxx=${CXX:-c++}
+ar=${AR:-ar}
+ranlib=${RANLIB:-ranlib}
+cc_explicit=0
+cxx_explicit=0
+ar_explicit=0
+ranlib_explicit=0
+
+show_help() {
+    cat <<'EOF'
+Usage: ./configure [options]
+
+Common options:
+  --prefix=DIR          installation prefix [/usr/local]
+  --bindir=DIR          executable installation directory [PREFIX/bin]
+  --libdir=DIR          library installation directory [PREFIX/lib]
+  --includedir=DIR      header installation directory [PREFIX/include]
+  --pkgconfigdir=DIR    pkg-config directory [LIBDIR/pkgconfig]
+  --build-dir=DIR       make build directory [build]
+
+Build options:
+  --enable-shared       build libg729.so or libg729.dylib
+  --disable-shared      build only libg729.a [default]
+  --enable-tools        build/install g729enc, g729dec, g729bench [default]
+  --disable-tools       build/install only the library
+  --enable-tests        include tests in the default make target
+  --disable-tests       keep tests available only through make test [default]
+  --enable-examples     include examples in the default make target
+  --disable-examples    keep examples out of the default make target [default]
+  --enable-werror       treat compiler warnings as errors
+  --disable-werror      do not treat warnings as errors [default]
+
+Toolchain options:
+  --cc=CMD              C compiler [cc]
+  --cxx=CMD             C++ compiler [c++]
+  --ar=CMD              static library archiver [ar]
+  --ranlib=CMD          static library indexer [ranlib]
+  --host=TRIPLE         use TRIPLE-gcc, TRIPLE-g++, TRIPLE-ar, TRIPLE-ranlib
+  --arch=ARCH           add native arch flags when useful:
+                        i386/i686/x86, x86_64/amd64, arm64/aarch64
+
+Environment:
+  CC, CXX, AR, RANLIB, CFLAGS, CXXFLAGS, CPPFLAGS, and LDFLAGS are honored.
+
+Examples:
+  ./configure --prefix=/usr
+  ./configure --enable-shared
+  ./configure --arch=i386
+  ./configure --host=i686-linux-gnu --disable-tools
+EOF
+}
+
+for opt in "$@"; do
+    case "$opt" in
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        --prefix=*) prefix=${opt#*=} ;;
+        --bindir=*) bindir=${opt#*=} ;;
+        --libdir=*) libdir=${opt#*=} ;;
+        --includedir=*) includedir=${opt#*=} ;;
+        --pkgconfigdir=*) pkgconfigdir=${opt#*=} ;;
+        --build-dir=*) build_dir=${opt#*=} ;;
+        --enable-shared) enable_shared=1 ;;
+        --disable-shared) enable_shared=0 ;;
+        --enable-tools) enable_tools=1 ;;
+        --disable-tools) enable_tools=0 ;;
+        --enable-tests) enable_tests=1 ;;
+        --disable-tests) enable_tests=0 ;;
+        --enable-examples) enable_examples=1 ;;
+        --disable-examples) enable_examples=0 ;;
+        --enable-werror) enable_werror=1 ;;
+        --disable-werror) enable_werror=0 ;;
+        --cc=*) cc=${opt#*=}; cc_explicit=1 ;;
+        --cxx=*) cxx=${opt#*=}; cxx_explicit=1 ;;
+        --ar=*) ar=${opt#*=}; ar_explicit=1 ;;
+        --ranlib=*) ranlib=${opt#*=}; ranlib_explicit=1 ;;
+        --host=*) host=${opt#*=} ;;
+        --arch=*) arch=${opt#*=} ;;
+        *)
+            echo "configure: unknown option: $opt" >&2
+            echo "Try './configure --help'." >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [ -n "$host" ]; then
+    if [ "$cc_explicit" -eq 0 ] && [ -z "${CC+x}" ]; then
+        cc=$host-gcc
+    fi
+    if [ "$cxx_explicit" -eq 0 ] && [ -z "${CXX+x}" ]; then
+        cxx=$host-g++
+    fi
+    if [ "$ar_explicit" -eq 0 ] && [ -z "${AR+x}" ]; then
+        ar=$host-ar
+    fi
+    if [ "$ranlib_explicit" -eq 0 ] && [ -z "${RANLIB+x}" ]; then
+        ranlib=$host-ranlib
+    fi
+fi
+
+bindir=${bindir:-$prefix/bin}
+libdir=${libdir:-$prefix/lib}
+includedir=${includedir:-$prefix/include}
+pkgconfigdir=${pkgconfigdir:-$libdir/pkgconfig}
+
+tool_exists() {
+    tool=$1
+    set -- $tool
+    command -v "$1" >/dev/null 2>&1
+}
+
+for tool in "$cc" "$ar" "$ranlib"; do
+    if ! tool_exists "$tool"; then
+        echo "configure: required tool not found: $tool" >&2
+        exit 1
+    fi
+done
+
+if [ "$enable_examples" -eq 1 ] || [ "$enable_tests" -eq 1 ]; then
+    if ! tool_exists "$cxx"; then
+        echo "configure: required C++ compiler not found: $cxx" >&2
+        exit 1
+    fi
+fi
+
+uname_s=$(uname -s 2>/dev/null || echo unknown)
+shared_ext=so
+shared_ldflags=-shared
+arch_cflags=
+arch_ldflags=
+
+case "$uname_s" in
+    Darwin)
+        shared_ext=dylib
+        shared_ldflags='-dynamiclib -install_name $(LIBDIR)/libg729.dylib'
+        case "$arch" in
+            arm64|aarch64) arch_cflags='-arch arm64'; arch_ldflags='-arch arm64' ;;
+            x86_64|amd64) arch_cflags='-arch x86_64'; arch_ldflags='-arch x86_64' ;;
+            i386|i686|x86) arch_cflags='-arch i386'; arch_ldflags='-arch i386' ;;
+            "") ;;
+            *) echo "configure: unsupported --arch for Darwin: $arch" >&2; exit 1 ;;
+        esac
+        ;;
+    *)
+        case "$arch" in
+            i386|i686|x86) arch_cflags=-m32; arch_ldflags=-m32 ;;
+            x86_64|amd64) arch_cflags=-m64; arch_ldflags=-m64 ;;
+            arm64|aarch64) ;;
+            "") ;;
+            *) echo "configure: unsupported --arch: $arch" >&2; exit 1 ;;
+        esac
+        ;;
+esac
+
+{
+    echo "# Generated by ./configure. Do not edit by hand."
+    echo "CC = $cc"
+    echo "CXX = $cxx"
+    echo "AR = $ar"
+    echo "RANLIB = $ranlib"
+    echo "BUILD_DIR = $build_dir"
+    echo "PREFIX = $prefix"
+    echo "BINDIR = $bindir"
+    echo "LIBDIR = $libdir"
+    echo "INCLUDEDIR = $includedir"
+    echo "PKGCONFIGDIR = $pkgconfigdir"
+    echo "ENABLE_SHARED = $enable_shared"
+    echo "ENABLE_TOOLS = $enable_tools"
+    echo "ENABLE_TESTS = $enable_tests"
+    echo "ENABLE_EXAMPLES = $enable_examples"
+    echo "WERROR = $enable_werror"
+    echo "SHARED_EXT = $shared_ext"
+    echo "SHARED_LDFLAGS = $shared_ldflags"
+    echo "ARCH_CFLAGS = $arch_cflags"
+    echo "ARCH_LDFLAGS = $arch_ldflags"
+    [ -z "${CFLAGS+x}" ] || echo "CFLAGS = $CFLAGS"
+    [ -z "${CXXFLAGS+x}" ] || echo "CXXFLAGS = $CXXFLAGS"
+    [ -z "${CPPFLAGS+x}" ] || echo "CPPFLAGS = $CPPFLAGS"
+    [ -z "${LDFLAGS+x}" ] || echo "LDFLAGS = $LDFLAGS"
+} > config.mk
+
+cat <<EOF
+Configured g729-c:
+  prefix:          $prefix
+  build dir:       $build_dir
+  shared library:  $enable_shared
+  tools:           $enable_tools
+  tests in all:    $enable_tests
+  examples in all: $enable_examples
+  werror:          $enable_werror
+  host:            ${host:-native}
+  arch:            ${arch:-native}
+  cc:              $cc
+
+Next steps:
+  make
+  make test      # optional
+  make install
+EOF

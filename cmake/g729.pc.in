@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${pcfiledir}/..
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: g729-c
+Description: Clean-room G.729 Annex A-compatible C codec library
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lg729
+Cflags: -I${includedir}

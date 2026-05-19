@@ -6,7 +6,10 @@
   trailing partial-frame rejection.
 - AddressSanitizer and UndefinedBehaviorSanitizer pass when available.
 - Static analysis passes with clang, clang static analyzer, and cppcheck.
-- Platform tests pass on Ubuntu x64, macOS ARM64, and Linux ARM64 Docker/QEMU.
+- Platform tests pass on Ubuntu x64, macOS ARM64, Linux ARM64 Docker/QEMU, and
+  Linux i386 Docker.
+- `./configure`, `make`, `make install`, CMake, and CTest pass in the platform
+  test matrix.
 - Deterministic stress/load checks pass with `make loadtest`.
 - Decoder output matches Go decoder output sample-for-sample on committed
   fixtures.

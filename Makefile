@@ -1,18 +1,55 @@
+-include config.mk
+
 CC ?= cc
 CXX ?= c++
 AR ?= ar
-CFLAGS ?= -std=c99 -Wall -Wextra -Wpedantic -Werror -O2 -g
-CXXFLAGS ?= -std=c++11 -Wall -Wextra -Werror -O2 -g
+RANLIB ?= ranlib
+WERROR ?= 1
+WARNFLAGS ?= -Wall -Wextra -Wpedantic
+CXXWARNFLAGS ?= -Wall -Wextra
+ifeq ($(WERROR),1)
+WARNFLAGS += -Werror
+CXXWARNFLAGS += -Werror
+endif
+CFLAGS ?= -std=c99 $(WARNFLAGS) -O2 -g
+CXXFLAGS ?= -std=c++11 $(CXXWARNFLAGS) -O2 -g
 CPPFLAGS ?= -Iinclude -Isrc
 LDFLAGS ?=
+ARCH_CFLAGS ?=
+ARCH_CXXFLAGS ?= $(ARCH_CFLAGS)
+ARCH_LDFLAGS ?=
 TEST_ENV ?=
 BENCH_FRAMES ?= 20000
 PLATFORM_BENCH_FRAMES ?= 2000
 CPPCHECK ?= cppcheck
 SCAN_BUILD ?= scan-build
+ENABLE_SHARED ?= 0
+ENABLE_TOOLS ?= 1
+ENABLE_TESTS ?= 1
+ENABLE_EXAMPLES ?= 1
+PICFLAGS ?= -fPIC
+SHARED_EXT ?= so
+SHARED_LDFLAGS ?= -shared
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+LIBDIR ?= $(PREFIX)/lib
+INCLUDEDIR ?= $(PREFIX)/include
+PKGCONFIGDIR ?= $(LIBDIR)/pkgconfig
+INSTALL ?= install
+INSTALL_PROGRAM ?= $(INSTALL) -m 0755
+INSTALL_DATA ?= $(INSTALL) -m 0644
+
+CFLAGS += $(ARCH_CFLAGS)
+CXXFLAGS += $(ARCH_CXXFLAGS)
+LDFLAGS += $(ARCH_LDFLAGS)
+ifeq ($(ENABLE_SHARED),1)
+CFLAGS += $(PICFLAGS)
+endif
 
 BUILD_DIR := build
 LIB := $(BUILD_DIR)/libg729.a
+SHARED_LIB := $(BUILD_DIR)/libg729.$(SHARED_EXT)
+PC_FILE := $(BUILD_DIR)/g729.pc
 
 LIB_OBJS := \
 	$(BUILD_DIR)/src/g729.o \
@@ -68,9 +105,30 @@ TOOL_BINS := \
 	$(BUILD_DIR)/tools/g729enc \
 	$(BUILD_DIR)/tools/g729dec
 
-.PHONY: all clean test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle platform-check postfilter-oracle release-check static-analysis synth-oracle sanitize
+.PHONY: all clean distclean install uninstall test fixtures closedloop-oracle decode-oracle encode-oracle fcb-oracle fcb-search-oracle gain-oracle gain-quant-oracle gain-tables hp-oracle loadtest lpc-oracle lsp-enc-oracle lsp-tables lsp-oracle openloop-oracle pcm-oracle pitch-oracle platform-check postfilter-oracle release-check static-analysis synth-oracle sanitize
 
-all: $(LIB) $(TEST_BINS) $(EXAMPLE_BINS) $(TOOL_BINS)
+LIB_TARGETS := $(LIB)
+ifeq ($(ENABLE_SHARED),1)
+LIB_TARGETS += $(SHARED_LIB)
+endif
+
+ALL_TARGETS := $(LIB_TARGETS)
+ifeq ($(ENABLE_TOOLS),1)
+ALL_TARGETS += $(TOOL_BINS)
+endif
+ifeq ($(ENABLE_TESTS),1)
+ALL_TARGETS += $(TEST_BINS)
+endif
+ifeq ($(ENABLE_EXAMPLES),1)
+ALL_TARGETS += $(EXAMPLE_BINS)
+endif
+
+INSTALL_TARGETS := $(LIB_TARGETS) $(PC_FILE)
+ifeq ($(ENABLE_TOOLS),1)
+INSTALL_TARGETS += $(TOOL_BINS)
+endif
+
+all: $(ALL_TARGETS)
 
 $(BUILD_DIR)/src/%.o: src/%.c include/g729.h src/g729_bitstream.h src/g729_closedloop.h src/g729_fcb.h src/g729_fcb_search.h src/g729_fixed.h src/g729_gain.h src/g729_gain_quant.h src/g729_gain_tables.h src/g729_hp.h src/g729_lpc.h src/g729_lsp.h src/g729_lsp_tables.h src/g729_openloop.h src/g729_pcm.h src/g729_pitch.h src/g729_postfilter.h src/g729_synth.h
 	@mkdir -p $(@D)
@@ -79,6 +137,25 @@ $(BUILD_DIR)/src/%.o: src/%.c include/g729.h src/g729_bitstream.h src/g729_close
 $(LIB): $(LIB_OBJS)
 	@mkdir -p $(@D)
 	$(AR) rcs $@ $^
+	$(RANLIB) $@
+
+$(SHARED_LIB): $(LIB_OBJS)
+	@mkdir -p $(@D)
+	$(CC) $(SHARED_LDFLAGS) $(LDFLAGS) -o $@ $^
+
+$(PC_FILE):
+	@mkdir -p $(@D)
+	@printf '%s\n' \
+		'prefix=$(PREFIX)' \
+		'exec_prefix=$${prefix}' \
+		'libdir=$(LIBDIR)' \
+		'includedir=$(INCLUDEDIR)' \
+		'' \
+		'Name: g729-c' \
+		'Description: Clean-room G.729 Annex A-compatible C codec library' \
+		'Version: 0.1.0' \
+		'Libs: -L$${libdir} -lg729' \
+		'Cflags: -I$${includedir}' > $@
 
 $(BUILD_DIR)/tests/%: tests/%.c $(LIB)
 	@mkdir -p $(@D)
@@ -128,7 +205,7 @@ $(BUILD_DIR)/tools/%: tools/%.c $(LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
-test: all
+test: $(TEST_BINS) $(EXAMPLE_BINS) $(TOOL_BINS)
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_api
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_bitstream
 	$(TEST_ENV) $(BUILD_DIR)/tests/test_cli_decode
@@ -157,6 +234,32 @@ test: all
 
 loadtest: $(BUILD_DIR)/tools/g729bench
 	$(BUILD_DIR)/tools/g729bench $(BENCH_FRAMES)
+
+install: $(INSTALL_TARGETS)
+	$(INSTALL) -d "$(DESTDIR)$(INCLUDEDIR)"
+	$(INSTALL) -d "$(DESTDIR)$(LIBDIR)"
+	$(INSTALL) -d "$(DESTDIR)$(PKGCONFIGDIR)"
+	$(INSTALL_DATA) include/g729.h "$(DESTDIR)$(INCLUDEDIR)/g729.h"
+	$(INSTALL_DATA) $(LIB) "$(DESTDIR)$(LIBDIR)/libg729.a"
+ifeq ($(ENABLE_SHARED),1)
+	$(INSTALL_PROGRAM) $(SHARED_LIB) "$(DESTDIR)$(LIBDIR)/libg729.$(SHARED_EXT)"
+endif
+	$(INSTALL_DATA) $(PC_FILE) "$(DESTDIR)$(PKGCONFIGDIR)/g729.pc"
+ifeq ($(ENABLE_TOOLS),1)
+	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
+	$(INSTALL_PROGRAM) $(BUILD_DIR)/tools/g729enc "$(DESTDIR)$(BINDIR)/g729enc"
+	$(INSTALL_PROGRAM) $(BUILD_DIR)/tools/g729dec "$(DESTDIR)$(BINDIR)/g729dec"
+	$(INSTALL_PROGRAM) $(BUILD_DIR)/tools/g729bench "$(DESTDIR)$(BINDIR)/g729bench"
+endif
+
+uninstall:
+	rm -f "$(DESTDIR)$(INCLUDEDIR)/g729.h"
+	rm -f "$(DESTDIR)$(LIBDIR)/libg729.a"
+	rm -f "$(DESTDIR)$(LIBDIR)/libg729.$(SHARED_EXT)"
+	rm -f "$(DESTDIR)$(PKGCONFIGDIR)/g729.pc"
+	rm -f "$(DESTDIR)$(BINDIR)/g729enc"
+	rm -f "$(DESTDIR)$(BINDIR)/g729dec"
+	rm -f "$(DESTDIR)$(BINDIR)/g729bench"
 
 platform-check:
 	$(MAKE) clean test
@@ -244,3 +347,6 @@ sanitize: clean test
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+distclean: clean
+	rm -f config.mk

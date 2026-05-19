@@ -49,6 +49,26 @@ oracle fixtures.
 
 ## Build And Test
 
+For normal source builds:
+
+```sh
+./configure --prefix=/usr/local
+make
+make test
+make install
+```
+
+For CMake users:
+
+```sh
+cmake -S . -B build-cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build-cmake
+ctest --test-dir build-cmake --output-on-failure
+cmake --install build-cmake --prefix /usr/local
+```
+
+Developer targets:
+
 ```sh
 make
 make test
@@ -105,18 +125,22 @@ sanitizers, a final normal suite, the load test, and `git diff --check`.
 `make static-analysis` runs the clang build/test path, clang static analyzer,
 and cppcheck warning/performance/portability checks.
 
+See [docs/build.md](docs/build.md) for configure options, CMake package usage,
+shared library builds, install paths, cross-toolchains, and i386 notes.
+
 ## GitHub Actions
 
 Actions currently publish three workflow badges above:
 
 - `ci.yml`: release gate on Ubuntu.
 - `static-analysis.yml`: clang static analyzer and cppcheck.
-- `platform-tests.yml`: Ubuntu x64, macOS ARM64, and Linux ARM64 through
-  Docker/QEMU.
+- `platform-tests.yml`: Ubuntu x64, macOS ARM64, Linux ARM64 through
+  Docker/QEMU, and Linux i386 through Docker.
 
 The platform workflow writes a Markdown job summary for each target and uploads
 per-target Markdown/log artifacts plus one combined `platform-test-report`
-artifact for the full run.
+artifact for the full run. Each platform job covers `./configure`, `make`,
+`make install`, CMake, and CTest.
 
 ## CLI
 
