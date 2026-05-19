@@ -114,7 +114,7 @@ Docker i386 smoke test:
 ```sh
 docker run --rm --platform linux/386 \
   -v "$PWD:/workspace" -w /workspace \
-  i386/ubuntu:24.04 \
+  i386/debian:bookworm-slim \
   bash -lc 'apt-get update && apt-get install -y build-essential cmake && ./configure && make test'
 ```
 

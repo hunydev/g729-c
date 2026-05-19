@@ -122,7 +122,7 @@ jobs:
             qemu: arm64
           - name: linux-i386-docker
             platform: linux/386
-            image: i386/ubuntu:24.04
+            image: i386/debian:bookworm-slim
             qemu: ""
     env:
       PLATFORM_BENCH_FRAMES: 1000
