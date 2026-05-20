@@ -127,6 +127,8 @@ and cppcheck warning/performance/portability checks.
 
 See [docs/build.md](docs/build.md) for configure options, CMake package usage,
 shared library builds, install paths, cross-toolchains, and i386 notes.
+See [docs/streaming.md](docs/streaming.md) for frame-boundary buffering,
+partial-input handling, padding/trimming policy, and RTP-style packetization.
 
 ## GitHub Actions
 
@@ -155,6 +157,11 @@ build/tools/g729dec < input.g729 > output.s16le
 ```
 
 The tools reject trailing partial input frames.
+
+For streaming use, buffer PCM until 80 samples are available before calling the
+encoder, and read packed input in 10-byte units before calling the decoder.
+There are no partial G.729 frames. See [docs/streaming.md](docs/streaming.md)
+for tail-padding and packetization guidance.
 
 ## Minimal API Shape
 
