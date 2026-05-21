@@ -10,6 +10,10 @@ extern "C" {
 #define G729_SAMPLE_RATE 8000
 #define G729_FRAME_SAMPLES 80
 #define G729_FRAME_BYTES 10
+#define G729_VERSION_MAJOR 0
+#define G729_VERSION_MINOR 1
+#define G729_VERSION_PATCH 0
+#define G729_VERSION_STRING "0.1.0"
 
 typedef enum g729_result {
     G729_OK = 0,
@@ -36,6 +40,7 @@ void g729_encoder_init(g729_encoder *enc);
 void g729_encoder_reset(g729_encoder *enc);
 void g729_decoder_init(g729_decoder *dec);
 void g729_decoder_reset(g729_decoder *dec);
+const char *g729_version_string(void);
 
 int g729_encode_frame(g729_encoder *enc,
                       const int16_t pcm[G729_FRAME_SAMPLES],

@@ -20,6 +20,11 @@ int main(void) {
     CHECK(G729_SAMPLE_RATE == 8000);
     CHECK(G729_FRAME_SAMPLES == 80);
     CHECK(G729_FRAME_BYTES == 10);
+    CHECK(G729_VERSION_MAJOR == 0);
+    CHECK(G729_VERSION_MINOR == 1);
+    CHECK(G729_VERSION_PATCH == 0);
+    CHECK(strcmp(G729_VERSION_STRING, "0.1.0") == 0);
+    CHECK(strcmp(g729_version_string(), G729_VERSION_STRING) == 0);
 
     memset(&enc, 0xA5, sizeof(enc));
     memset(&dec, 0x5A, sizeof(dec));

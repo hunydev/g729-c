@@ -23,6 +23,12 @@
   test gate on pushes and pull requests.
 - GitHub Actions platform runs publish Markdown job summaries and the combined
   `platform-test-report` artifact.
+- Compatibility notes list the compiler, libc, platform, API, ABI, and binary
+  release baseline for the release.
+- Linux shared objects have their libc symbol versions checked with
+  `readelf --version-info`; macOS dylibs have their dependencies checked with
+  `otool -L`.
+- Public header changes are reviewed against the API/ABI policy before release.
 - README and clean-room documentation make only conservative claims.
 - Release notes state unsupported Annex B, G.729.1, G.729D, G.729E, ITU
   certification, and ITU endorsement.

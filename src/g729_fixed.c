@@ -2,7 +2,17 @@
 
 #include <stdint.h>
 
-static int fixed_overflow_flag;
+#if defined(_MSC_VER)
+#define G729_THREAD_LOCAL __declspec(thread)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define G729_THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__) || defined(__clang__)
+#define G729_THREAD_LOCAL __thread
+#else
+#define G729_THREAD_LOCAL
+#endif
+
+static G729_THREAD_LOCAL int fixed_overflow_flag;
 
 static void set_overflow(void) {
     fixed_overflow_flag = 1;

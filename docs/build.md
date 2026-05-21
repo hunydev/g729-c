@@ -9,6 +9,9 @@ This project supports two user-facing build paths:
 The library is plain C99 and is tested on Linux x86_64, Linux ARM64, Linux
 i386, and macOS ARM64 in GitHub Actions.
 
+See [compatibility.md](compatibility.md) for supported compiler/libc baselines,
+API/ABI policy, and binary-release compatibility notes.
+
 ## Configure And Make
 
 ```sh
@@ -21,6 +24,8 @@ make install
 `./configure` writes `config.mk`, which is intentionally ignored by git.
 Without `./configure`, the developer defaults remain active and `make` builds
 the library, tools, tests, and examples.
+Run `make clean` after changing configure options that affect object files,
+such as `--enable-shared` or architecture flags.
 
 Return to an unconfigured tree:
 

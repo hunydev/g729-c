@@ -585,6 +585,10 @@ void g729_decoder_reset(g729_decoder *dec) {
     g729_decoder_init(dec);
 }
 
+const char *g729_version_string(void) {
+    return G729_VERSION_STRING;
+}
+
 int g729_encode_frame(g729_encoder *enc,
                       const int16_t pcm[G729_FRAME_SAMPLES],
                       uint8_t bits[G729_FRAME_BYTES]) {
